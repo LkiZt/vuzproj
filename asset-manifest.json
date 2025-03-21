@@ -1,0 +1,16 @@
+{
+  "files": {
+    "main.css": "/static/css/main.3e8460ed.css",
+    "main.js": "/static/js/main.8c58ceb6.js",
+    "static/media/IstokWeb-Regular.ttf": "/static/media/IstokWeb-Regular.bc5919561e9e0886b60e.ttf",
+    "static/media/IstokWeb-Bold.ttf": "/static/media/IstokWeb-Bold.ea6a3affeb9189bb90b3.ttf",
+    "static/media/background.png": "/static/media/background.a0f49ca2b5c901c0c675.png",
+    "index.html": "/index.html",
+    "main.3e8460ed.css.map": "/static/css/main.3e8460ed.css.map",
+    "main.8c58ceb6.js.map": "/static/js/main.8c58ceb6.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.3e8460ed.css",
+    "static/js/main.8c58ceb6.js"
+  ]
+}
