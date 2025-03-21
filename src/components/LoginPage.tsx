@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const LoginPage: React.FC = () => {
@@ -14,6 +14,27 @@ const LoginPage: React.FC = () => {
         e.preventDefault();
         setIsModalOpen(true);
     };
+    const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+    useEffect(() => {
+            const handleResize = () => {
+                setWindowWidth(window.innerWidth);
+            };
+            
+            window.addEventListener('resize', handleResize);
+    
+            return () => {
+                window.removeEventListener('resize', handleResize);
+            };
+        }, []);
+    if (windowWidth < 1560) {
+        return (
+            <div className="page-container">
+                <div className="width-message">
+                    <p>Для использования сайта необходима ширина экрана более 1560 пикселей.</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className='page-container'>

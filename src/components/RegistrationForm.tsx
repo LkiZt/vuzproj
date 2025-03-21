@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const RegistrationForm: React.FC = () => {
@@ -18,12 +18,24 @@ const RegistrationForm: React.FC = () => {
         username: '',
         password: ''
     });
+    const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
+    useEffect(() => {
+        const handleResize = () => {
+            setWindowWidth(window.innerWidth);
+        };
+
+        window.addEventListener('resize', handleResize);
+
+        return () => {
+            window.removeEventListener('resize', handleResize);
+        };
+    }, []);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setFormData({ ...formData, [name]: value });
 
-        // Валидация при изменении данных
         validateForm(name, value);
     };
 
@@ -31,7 +43,6 @@ const RegistrationForm: React.FC = () => {
         let formErrors = { ...errors };
         let isValid = true;
 
-        // Имя/Фамилия/Отчество - только русские буквы
         const nameRegex = /^[а-яА-ЯёЁ]+$/;
         if (name === 'firstName' && !nameRegex.test(value)) {
             formErrors.firstName = 'Имя должно содержать только русские буквы';
@@ -54,7 +65,6 @@ const RegistrationForm: React.FC = () => {
             formErrors.patronymic = '';
         }
 
-        // Логин - обязательно содержит почту
         const emailRegex = /\S+@\S+\.\S+/;
         if (name === 'username' && !emailRegex.test(value)) {
             formErrors.username = 'Логин должен содержать почту (например, example@domain.com)';
@@ -63,7 +73,6 @@ const RegistrationForm: React.FC = () => {
             formErrors.username = '';
         }
 
-        // Пароль должен содержать большую букву, цифру, специальный знак и быть не менее 8 символов
         const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]{8,}$/;
         if (name === 'password' && !passwordRegex.test(value)) {
             formErrors.password = 'Пароль должен содержать минимум 8 символов, большую букву, цифру и специальный знак';
@@ -90,9 +99,19 @@ const RegistrationForm: React.FC = () => {
     };
 
     const handleBackToLogin = (e: React.MouseEvent) => {
-        e.preventDefault(); // Предотвратить отправку формы при нажатии "Вернуться ко входу"
+        e.preventDefault();
         navigate('/login');
     };
+
+    if (windowWidth < 1560) {
+        return (
+            <div className="page-container">
+                <div className="width-message">
+                    <p>Для использования сайта необходима ширина экрана более 1560 пикселей.</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className='page-container'>

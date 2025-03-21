@@ -60,6 +60,16 @@ body {
     max-width: 402px;
     word-wrap: break-word; /* Переносит длинные строки текста */
 }
+.width-message {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh; /* Занимает всю высоту экрана */
+    text-align: center;
+    font-size: 25px;
+    font-weight: 700;
+    color: #000;
+}
 
 
 
