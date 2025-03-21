@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState} from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const RegistrationForm: React.FC = () => {
@@ -18,19 +18,19 @@ const RegistrationForm: React.FC = () => {
         username: '',
         password: ''
     });
-    const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+    // const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
-    useEffect(() => {
-        const handleResize = () => {
-            setWindowWidth(window.innerWidth);
-        };
+    // useEffect(() => {
+    //     const handleResize = () => {
+    //         setWindowWidth(window.innerWidth);
+    //     };
 
-        window.addEventListener('resize', handleResize);
+    //     window.addEventListener('resize', handleResize);
 
-        return () => {
-            window.removeEventListener('resize', handleResize);
-        };
-    }, []);
+    //     return () => {
+    //         window.removeEventListener('resize', handleResize);
+    //     };
+    // }, []);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -103,15 +103,15 @@ const RegistrationForm: React.FC = () => {
         navigate('/login');
     };
 
-    if (windowWidth < 1560) {
-        return (
-            <div className="page-container">
-                <div className="width-message">
-                    <p>Для использования сайта необходима ширина экрана более 1560 пикселей.</p>
-                </div>
-            </div>
-        );
-    }
+    // if (windowWidth < 1560) {
+    //     return (
+    //         <div className="page-container">
+    //             <div className="width-message">
+    //                 <p>Для использования сайта необходима ширина экрана более 1560 пикселей.</p>
+    //             </div>
+    //         </div>
+    //     );
+    // }
 
     return (
         <div className='page-container'>
