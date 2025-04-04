@@ -1,165 +1,168 @@
-import React, { useState} from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+const CheckIcon = () => (
+  <span style={{ color: '#2e7d32', marginRight: '8px' }}>✓</span>
+);
+
 const RegistrationForm: React.FC = () => {
-    const navigate = useNavigate(); // Хук для навигации
+    const navigate = useNavigate();
     const [formData, setFormData] = useState({
-        firstName: '',
-        lastName: '',
-        patronymic: '',
+        fullname: '',
         username: '',
         password: ''
     });
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [modalMessage, setModalMessage] = useState('');
     const [errors, setErrors] = useState({
-        firstName: '',
-        lastName: '',
-        patronymic: '',
+        fullname: '',
         username: '',
         password: ''
     });
-    // const [windowWidth, setWindowWidth] = useState(window.innerWidth);
-
-    // useEffect(() => {
-    //     const handleResize = () => {
-    //         setWindowWidth(window.innerWidth);
-    //     };
-
-    //     window.addEventListener('resize', handleResize);
-
-    //     return () => {
-    //         window.removeEventListener('resize', handleResize);
-    //     };
-    // }, []);
+    const [passwordRequirements, setPasswordRequirements] = useState({
+        length: false,
+        uppercase: false,
+        lowercase: false,
+        number: false,
+        specialChar: false
+    });
+    const [isLoading, setIsLoading] = useState(false);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setFormData({ ...formData, [name]: value });
 
-        validateForm(name, value);
+        if (value === '') {
+            setErrors({ ...errors, [name]: '' });
+            if (name === 'password') {
+                setPasswordRequirements({
+                    length: false,
+                    uppercase: false,
+                    lowercase: false,
+                    number: false,
+                    specialChar: false
+                });
+            }
+        } else {
+            validateForm(name, value);
+        }
     };
 
     const validateForm = (name: string, value: string) => {
         let formErrors = { ...errors };
         let isValid = true;
 
-        const nameRegex = /^[а-яА-ЯёЁ]+$/;
-        if (name === 'firstName' && !nameRegex.test(value)) {
-            formErrors.firstName = 'Имя должно содержать только русские буквы';
-            isValid = false;
-        } else if (name === 'firstName') {
-            formErrors.firstName = '';
+        if (name === 'username') {
+            const emailRegex = /\S+@\S+\.\S+/;
+            if (!emailRegex.test(value)) {
+                formErrors.username = 'Логин должен содержать почту (например, example@domain.com)';
+                isValid = false;
+            } else {
+                formErrors.username = '';
+            }
         }
 
-        if (name === 'lastName' && !nameRegex.test(value)) {
-            formErrors.lastName = 'Фамилия должна содержать только русские буквы';
-            isValid = false;
-        } else if (name === 'lastName') {
-            formErrors.lastName = '';
-        }
+        if (name === 'password') {
+            const hasUppercase = /[\p{Lu}]/u.test(value);
+            const hasLowercase = /[\p{Ll}]/u.test(value);
+            
+            const requirements = {
+                length: value.length >= 6,
+                uppercase: hasUppercase,
+                lowercase: hasLowercase,
+                number: /\d/.test(value),
+                specialChar: /[!@#$%^&*]/.test(value)
+            };
+            setPasswordRequirements(requirements);
 
-        if (name === 'patronymic' && !nameRegex.test(value)) {
-            formErrors.patronymic = 'Отчество должно содержать только русские буквы';
-            isValid = false;
-        } else if (name === 'patronymic') {
-            formErrors.patronymic = '';
-        }
-
-        const emailRegex = /\S+@\S+\.\S+/;
-        if (name === 'username' && !emailRegex.test(value)) {
-            formErrors.username = 'Логин должен содержать почту (например, example@domain.com)';
-            isValid = false;
-        } else if (name === 'username') {
-            formErrors.username = '';
-        }
-
-        const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]{8,}$/;
-        if (name === 'password' && !passwordRegex.test(value)) {
-            formErrors.password = 'Пароль должен содержать минимум 8 символов, большую букву, цифру и специальный знак';
-            isValid = false;
-        } else if (name === 'password') {
-            formErrors.password = '';
+            if (!requirements.length || !requirements.uppercase || 
+                !requirements.lowercase || !requirements.number || 
+                !requirements.specialChar) {
+                formErrors.password = 'Пароль не соответствует требованиям:';
+                isValid = false;
+            } else {
+                formErrors.password = '';
+            }
         }
 
         setErrors(formErrors);
         return isValid;
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setIsLoading(true);
 
-        if (validateForm('firstName', formData.firstName) &&
-            validateForm('lastName', formData.lastName) &&
-            validateForm('patronymic', formData.patronymic) &&
-            validateForm('username', formData.username) &&
-            validateForm('password', formData.password)) {
-            console.log(formData);
+        if (!validateForm('username', formData.username) || 
+            !validateForm('password', formData.password)) {
+            setIsLoading(false);
+            return;
+        }
+
+        try {
+            const response = await fetch('http://85.159.226.224:5000/api/auth/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    fullname: formData.fullname,
+                    email: formData.username,
+                    password: formData.password
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                setModalMessage('Пользователь успешно зарегистрирован');
+                setIsModalOpen(true);
+            } else {
+                setModalMessage(data.message || 'Ошибка при регистрации');
+                setIsModalOpen(true);
+            }
+        } catch (error) {
+            setModalMessage('Ошибка сети. Попробуйте позже.');
             setIsModalOpen(true);
+        } finally {
+            setIsLoading(false);
         }
     };
 
-    const handleBackToLogin = (e: React.MouseEvent) => {
-        e.preventDefault();
-        navigate('/login');
+
+    const closeModal = () => {
+        setIsModalOpen(false);
     };
 
-    // if (windowWidth < 1560) {
-    //     return (
-    //         <div className="page-container">
-    //             <div className="width-message">
-    //                 <p>Для использования сайта необходима ширина экрана более 1560 пикселей.</p>
-    //             </div>
-    //         </div>
-    //     );
-    // }
-
     return (
-        <div className='page-container'>
+        <div className='page-container' style={{ fontSize: '18px' }}>
             <div className="registration">
                 <h2 className='reg-title'>Регистрация</h2>
                 <div className="registration-form">
                     <form onSubmit={handleSubmit}>
                         <div>
-                            <label>Имя</label>
+                            <label>ФИО</label>
                             <input
                                 type="text"
-                                name="firstName"
+                                name="fullname"
                                 placeholder="Поле для ввода текста"
-                                value={formData.firstName}
+                                value={formData.fullname}
                                 onChange={handleChange}
+                                style={{ fontSize: '18px' }}
+                                required
                             />
-                            {errors.firstName && <div className="error">{errors.firstName}</div>}
+                            {errors.fullname && <div className="error">{errors.fullname}</div>}
                         </div>
                         <div>
-                            <label>Фамилия</label>
+                            <label>Email</label>
                             <input
-                                type="text"
-                                name="lastName"
-                                placeholder="Поле для ввода текста"
-                                value={formData.lastName}
-                                onChange={handleChange}
-                            />
-                            {errors.lastName && <div className="error">{errors.lastName}</div>}
-                        </div>
-                        <div>
-                            <label>Отчество</label>
-                            <input
-                                type="text"
-                                name="patronymic"
-                                placeholder="Поле для ввода текста"
-                                value={formData.patronymic}
-                                onChange={handleChange}
-                            />
-                            {errors.patronymic && <div className="error">{errors.patronymic}</div>}
-                        </div>
-                        <div>
-                            <label>Логин</label>
-                            <input
-                                type="text"
+                                type="email"
                                 name="username"
-                                placeholder="Поле для ввода текста"
+                                placeholder="example@domain.com"
                                 value={formData.username}
                                 onChange={handleChange}
+                                style={{ fontSize: '18px' }}
+                                required
                             />
                             {errors.username && <div className="error">{errors.username}</div>}
                         </div>
@@ -168,23 +171,83 @@ const RegistrationForm: React.FC = () => {
                             <input
                                 type="password"
                                 name="password"
-                                placeholder="Поле для ввода текста"
+                                placeholder="Пароль"
                                 value={formData.password}
                                 onChange={handleChange}
+                                style={{ fontSize: '18px' }}
+                                required
                             />
-                            {errors.password && <div className="error">{errors.password}</div>}
+                            {errors.password && (
+                                <div className="password-requirements">
+                                    <div className="error">{errors.password}</div>
+                                    <ul style={{ listStyle: 'none', paddingLeft: '0' }}>
+                                        <li style={{ display: 'flex', alignItems: 'center' }}>
+                                            {passwordRequirements.length && <CheckIcon />}
+                                            <span>Минимум 6 символов</span>
+                                        </li>
+                                        <li style={{ display: 'flex', alignItems: 'center' }}>
+                                            {passwordRequirements.uppercase && <CheckIcon />}
+                                            <span>Хотя бы одна заглавная буква</span>
+                                        </li>
+                                        <li style={{ display: 'flex', alignItems: 'center' }}>
+                                            {passwordRequirements.lowercase && <CheckIcon />}
+                                            <span>Хотя бы одна строчная буква</span>
+                                        </li>
+                                        <li style={{ display: 'flex', alignItems: 'center' }}>
+                                            {passwordRequirements.number && <CheckIcon />}
+                                            <span>Хотя бы одна цифра</span>
+                                        </li>
+                                        <li style={{ display: 'flex', alignItems: 'center' }}>
+                                            {passwordRequirements.specialChar && <CheckIcon />}
+                                            <span>Хотя бы один спецсимвол</span>
+                                        </li>
+                                    </ul>
+                                </div>
+                            )}
                         </div>
                         <div className='registration-buttons'>
-                            <button type="submit">Зарегистрироваться</button>
-                            <button className="back-to-login" onClick={handleBackToLogin}>Вернуться ко входу</button>
+                            <button 
+                                type="submit" 
+                                style={{ fontSize: '18px', width: '240px' }}
+                                disabled={isLoading}
+                            >
+                                {isLoading ? 'Регистрация...' : 'Зарегистрироваться'}
+                            </button>
                         </div>
                     </form>
                 </div>
                 {isModalOpen && (
-                    <div className="modal">
-                        <div className="modal-content">
-                            <p>Нет метода на бэке</p>
-                            <button onClick={() => setIsModalOpen(false)} className="btn">Закрыть</button>
+                    <div style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: 'rgba(0,0,0,0.5)',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        zIndex: 1000
+                    }}>
+                        <div style={{
+                            backgroundColor: 'white',
+                            padding: '20px',
+                            borderRadius: '5px',
+                            maxWidth: '400px',
+                            width: '100%',
+                            textAlign: 'center'
+                        }}>
+                            <p>{modalMessage}</p>
+                            <button 
+                                onClick={closeModal}
+                                style={{ 
+                                    fontSize: '18px', 
+                                    padding: '8px 16px',
+                                    marginTop: '15px'
+                                }}
+                            >
+                                ОК
+                            </button>
                         </div>
                     </div>
                 )}

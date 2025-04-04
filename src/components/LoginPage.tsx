@@ -1,40 +1,50 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import '../styles/App.css';
 
 const LoginPage: React.FC = () => {
+    const [formData, setFormData] = useState({ email: '', password: '' });
+    const [error, setError] = useState('');
     const navigate = useNavigate();
-    const [formData, setFormData] = useState({ username: '', password: '' });
-    const [isModalOpen, setIsModalOpen] = useState(false);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsModalOpen(true);
-    };
-    // const [windowWidth, setWindowWidth] = useState(window.innerWidth);
-    // useEffect(() => {
-    //         const handleResize = () => {
-    //             setWindowWidth(window.innerWidth);
-    //         };
+    useEffect(() => {
+        const isAuthenticated = localStorage.getItem('authToken') !== null;
+        if (isAuthenticated) {
+          navigate('/home'); // Перенаправляем, если уже авторизован
+        }
+      }, [navigate]);
 
-    //         window.addEventListener('resize', handleResize);
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
     
-    //         return () => {
-    //             window.removeEventListener('resize', handleResize);
-    //         };
-    //     }, []);
-    // if (windowWidth < 1560) {
-    //     return (
-    //         <div className="page-container">
-    //             <div className="width-message">
-    //                 <p>Для использования сайта необходима ширина экрана более 1560 пикселей.</p>
-    //             </div>
-    //         </div>
-    //     );
-    // }
+        try {
+            const response = await fetch('http://85.159.226.224:5000/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify(formData)
+            });
+    
+            if (!response.ok) {
+                setFormData(prev => ({ ...prev, password: '' }));
+                throw new Error('Ошибка входа, проверьте email и пароль');
+            }
+    
+            const data = await response.json();
+            if (data.token) {
+                localStorage.setItem('authToken', data.token);
+                navigate('/home');
+            } else {
+                throw new Error('Не получен токен');
+            }
+        } catch (err: any) {
+            setError(err.message);
+        }
+    };
 
     return (
         <div className='page-container'>
@@ -43,13 +53,14 @@ const LoginPage: React.FC = () => {
                 <div className="login-form">
                     <form onSubmit={handleSubmit}>
                         <div>
-                            <label>Логин</label>
+                            <label>Email</label>
                             <input
-                                type="text"
-                                name="username"
-                                placeholder="Введите логин"
-                                value={formData.username}
+                                type="email"
+                                name="email"
+                                placeholder="Введите email"
+                                value={formData.email}
                                 onChange={handleChange}
+                                required
                             />
                         </div>
                         <div>
@@ -60,27 +71,18 @@ const LoginPage: React.FC = () => {
                                 placeholder="Введите пароль"
                                 value={formData.password}
                                 onChange={handleChange}
+                                required
                             />
                         </div>
+                        {error && <p className="error">{error}</p>}
                         <div className='login-buttons'>
                             <button type="submit">Войти</button>
-                            <button type="button" onClick={() => navigate('/register')}>Зарегистрироваться</button>
                         </div>
                     </form>
                 </div>
-                {isModalOpen && (
-                <div className="modal">
-                    <div className="modal-content">
-                        <p>Нет метода на бэке</p>
-                        <button onClick={() => setIsModalOpen(false)} className="btn">Закрыть</button>
-                    </div>
-                </div>
-                )}
             </div>
         </div>
     );
 };
 
 export default LoginPage;
-
-export {};
