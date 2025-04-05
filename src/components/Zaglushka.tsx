@@ -8,11 +8,17 @@ const LogoutButton: React.FC = () => {
         localStorage.removeItem('authToken');
         navigate('/login');
     };
+    const handleRegister = () => {
+        navigate('/register');
+    };
 
     return (
         <div className="logout-container">
             <button onClick={handleLogout} className="logout-button">
                 Выйти
+            </button>
+            <button onClick={handleRegister} className="register-button">
+                Регистрация
             </button>
         </div>
     );

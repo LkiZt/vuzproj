@@ -28,6 +28,10 @@ const RegistrationForm: React.FC = () => {
     });
     const [isLoading, setIsLoading] = useState(false);
 
+    const handleBackClick = () => {
+        navigate('/home');
+    };
+
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setFormData({ ...formData, [name]: value });
@@ -129,13 +133,35 @@ const RegistrationForm: React.FC = () => {
         }
     };
 
-
     const closeModal = () => {
         setIsModalOpen(false);
     };
 
     return (
-        <div className='page-container' style={{ fontSize: '18px' }}>
+        <div className='page-container' style={{ fontSize: '18px', position: 'relative' }}>
+            {/* Кнопка назад */}
+            <button 
+                onClick={handleBackClick}
+                style={{
+                    position: 'absolute',
+                    top: '20px',
+                    left: '20px',
+                    width: '80px',
+                    height: '80px',
+                    borderRadius: '50%',
+                    backgroundColor: '#f0f0f0',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    fontSize: '20px',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                }}
+            >
+                ←
+            </button>
+            
             <div className="registration">
                 <h2 className='reg-title'>Регистрация</h2>
                 <div className="registration-form">
