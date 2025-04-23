@@ -1,26 +1,25 @@
 @font-face {
     font-family: 'IstokWeb';
-    src: url('/fonts/IstokWeb-Regular.ttf') format('truetype');
+    src: url('../../public/fonts/IstokWeb-Regular.ttf') format('truetype');
     font-weight: normal;
     font-style: normal;
 }
   
 @font-face {
     font-family: 'IstokWeb';
-    src: url('/fonts/IstokWeb-Bold.ttf') format('truetype');
+    src: url('../../public/fonts/IstokWeb-Bold.ttf') format('truetype');
     font-weight: bold;
     font-style: normal;
 }
   
 body {
-    background: url('/images/background.png') no-repeat center center fixed;
+    background: url('../../public/images/background.png') no-repeat center center fixed;
     background-size: cover;
     font-family: 'IstokWeb', sans-serif;
     margin: 0;
     padding: 0;
     height: 100vh;
 }
-  
 
 
 
