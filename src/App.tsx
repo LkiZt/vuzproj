@@ -5,6 +5,7 @@ import RegistrationForm from './components/RegistrationForm';
 import LoginPage from './components/LoginPage';
 import HomePage from './components/HomePage';
 import Zaglushka from './components/Zaglushka';
+import TemplateUploadPage from './components/TemplateUploadPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 const App: React.FC = () => {
@@ -20,6 +21,7 @@ const App: React.FC = () => {
             <Route element={<ProtectedRoute />}>
                 <Route path="/register" element={<RegistrationForm />} />
                 <Route path="/home" element={<Zaglushka />} />
+                <Route path="/upload" element={<TemplateUploadPage />} />
                 {/* <Route path="/home2" element={<HomePage />} /> */}
             </Route>
 

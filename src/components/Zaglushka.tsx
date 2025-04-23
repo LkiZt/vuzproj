@@ -11,6 +11,9 @@ const LogoutButton: React.FC = () => {
     const handleRegister = () => {
         navigate('/register');
     };
+    const handleUpload = () => {
+        navigate('/upload');
+    };
 
     return (
         <div className="logout-container">
@@ -19,6 +22,9 @@ const LogoutButton: React.FC = () => {
             </button>
             <button onClick={handleRegister} className="register-button">
                 Регистрация
+            </button>
+            <button onClick={handleUpload} className="upload-button">
+                Загрузка отчета
             </button>
         </div>
     );
