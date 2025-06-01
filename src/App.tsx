@@ -20,9 +20,9 @@ const App: React.FC = () => {
             {/* Защищённые маршруты (только для авторизованных) */}
             <Route element={<ProtectedRoute />}>
                 <Route path="/register" element={<RegistrationForm />} />
-                <Route path="/home" element={<Zaglushka />} />
+                <Route path="/home" element={<HomePage />} />
                 <Route path="/upload" element={<TemplateUploadPage />} />
-                {/* <Route path="/home2" element={<HomePage />} /> */}
+                <Route path="/navigator" element={<Zaglushka />} />
             </Route>
 
             {/* Обработка несуществующих маршрутов */}

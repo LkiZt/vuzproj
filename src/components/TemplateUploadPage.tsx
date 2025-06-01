@@ -10,6 +10,8 @@ interface HighlightedText {
     start: number;
     end: number;
   };
+  isTable: boolean;
+  isDefault: boolean;
 }
 
 interface TemplateUploadResponse {
@@ -60,6 +62,81 @@ const ErrorModal: React.FC<{ message: string; onClose: () => void }> = ({ messag
   );
 };
 
+const TemplateNameModal: React.FC<{ 
+  onConfirm: (name: string) => void, 
+  onCancel: () => void 
+}> = ({ onConfirm, onCancel }) => {
+  const [name, setName] = useState('');
+
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000,
+    }}>
+      <div style={{
+        backgroundColor: 'white',
+        padding: '20px',
+        borderRadius: '8px',
+        maxWidth: '500px',
+        width: '90%',
+        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+      }}>
+        <h3 style={{ marginTop: 0 }}>Введите название шаблона</h3>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          style={{
+            padding: '8px',
+            borderRadius: '4px',
+            border: '1px solid #ccc',
+            width: '100%',
+            marginBottom: '15px'
+          }}
+          placeholder="Название шаблона"
+        />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+          <button
+            onClick={onCancel}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#f5f5f5',
+              color: '#333',
+              border: '1px solid #ccc',
+              borderRadius: '4px',
+              cursor: 'pointer',
+            }}
+          >
+            Отмена
+          </button>
+          <button
+            onClick={() => onConfirm(name)}
+            disabled={!name.trim()}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#1976d2',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+            }}
+          >
+            Подтвердить
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const TemplateUploadPage: React.FC = () => {
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -70,8 +147,12 @@ const TemplateUploadPage: React.FC = () => {
   const [tempName, setTempName] = useState('');
   const contentRef = useRef<HTMLDivElement>(null);
   const [htmlContent, setHtmlContent] = useState('');
-  const [templateName, setTemplateName] = useState<string>('');
   const [showErrorModal, setShowErrorModal] = useState(false);
+  const [docType, setDocType] = useState<string>('отчет');
+  const [taxPercent, setTaxPercent] = useState<number | null>(null);
+  const [templateName, setTemplateName] = useState<string>('');
+  const [showTemplateNameModal, setShowTemplateNameModal] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const getTextNodes = (node: Node | null): Node[] => {
     if (!node) return [];
@@ -86,20 +167,26 @@ const TemplateUploadPage: React.FC = () => {
     return textNodes;
   };
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    if (acceptedFiles.length === 0) return;
-    const file = acceptedFiles[0];
-    
-    // Проверка типа файла
-    const validTypes = ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/pdf'];
-    if (!validTypes.includes(file.type)) {
-      setError('Неподдерживаемый формат файла. Пожалуйста, загрузите DOCX или PDF.');
-      setShowErrorModal(true);
-      return;
+  const isInTable = (node: Node): boolean => {
+    let parent = node.parentNode;
+    while (parent) {
+      if (parent.nodeName === 'TABLE') {
+        return true;
+      }
+      parent = parent.parentNode;
     }
+    return false;
+  };
 
+  const handleTemplateNameConfirm = async (name: string) => {
+    setTemplateName(name);
+    setShowTemplateNameModal(false);
+    
+    if (!selectedFile) return;
+    
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', selectedFile);
+    formData.append('templateName', name);
 
     try {
       setLoading(true);
@@ -123,7 +210,6 @@ const TemplateUploadPage: React.FC = () => {
         setUploadedUrl(data.htmlURL);
         setFileUploaded(true);
         setHighlightedTexts([]);
-        setTemplateName(data.templateName);
         setTimeout(() => setHtmlContent(html), 0);
       } else {
         throw new Error('Не удалось получить ссылку на HTML');
@@ -134,6 +220,21 @@ const TemplateUploadPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    if (acceptedFiles.length === 0) return;
+    const file = acceptedFiles[0];
+    
+    const validTypes = ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/pdf'];
+    if (!validTypes.includes(file.type)) {
+      setError('Неподдерживаемый формат файла. Пожалуйста, загрузите DOCX или PDF.');
+      setShowErrorModal(true);
+      return;
+    }
+
+    setSelectedFile(file);
+    setShowTemplateNameModal(true);
   }, []);
 
   useEffect(() => {
@@ -142,7 +243,8 @@ const TemplateUploadPage: React.FC = () => {
       if (!selection || selection.toString().trim() === '') return;
   
       const range = selection.getRangeAt(0);
-      if (!contentRef.current?.contains(range.commonAncestorContainer)) return;
+      const commonAncestor = range.commonAncestorContainer;
+      if (!contentRef.current?.contains(commonAncestor)) return;
   
       const selectedText = range.toString();
       const textNodes = getTextNodes(contentRef.current);
@@ -181,6 +283,8 @@ const TemplateUploadPage: React.FC = () => {
             text: selectedText,
             name: 'Не задано',
             range: { start: startOffset, end: endOffset },
+            isTable: isInTable(commonAncestor),
+            isDefault: false
           },
         ]);
       }
@@ -202,13 +306,19 @@ const TemplateUploadPage: React.FC = () => {
     setHighlightedTexts(prev => prev.filter(text => text.id !== id));
   };
 
-  const handleSaveReport = async () => {
-    if (!templateName) {
-      setError('Не получено имя шаблона');
-      setShowErrorModal(true);
-      return;
-    }
+  const toggleDefault = (id: string) => {
+    setHighlightedTexts(prev =>
+      prev.map(text => 
+        text.id === id ? { ...text, isDefault: !text.isDefault } : text
+      )
+    );
+  };
 
+  const handleNoTax = () => {
+    setTaxPercent(0);
+  };
+
+  const handleSaveReport = async () => {
     if (highlightedTexts.length === 0) {
       setError('Нет выделенных полей для сохранения');
       setShowErrorModal(true);
@@ -228,14 +338,19 @@ const TemplateUploadPage: React.FC = () => {
 
       const metadataJson = highlightedTexts.reduce((acc, text) => {
         if (text.name.trim() && text.name !== 'Не задано') {
-          acc[text.name] = text.text;
+          let fieldName = text.name;
+          if (text.isTable) fieldName = `[t]${fieldName}`;
+          if (text.isDefault) fieldName = `[d]${fieldName}`;
+          acc[fieldName] = text.text;
         }
         return acc;
       }, {} as Record<string, string>);
 
       const formData = new FormData();
       formData.append('templateName', templateName);
+      formData.append('docType', docType);
       formData.append('metadataJson', JSON.stringify(metadataJson));
+      formData.append('taxPercent', taxPercent?.toString() || '0');
 
       const response = await fetch('http://85.159.226.224:5000/api/template/submit-data', {
         method: 'POST',
@@ -273,196 +388,252 @@ const TemplateUploadPage: React.FC = () => {
         />
       )}
       
+      {showTemplateNameModal && (
+        <TemplateNameModal
+          onConfirm={handleTemplateNameConfirm}
+          onCancel={() => {
+            setShowTemplateNameModal(false);
+            setSelectedFile(null);
+          }}
+        />
+      )}
+      
       <div className="upload-container">
         {!fileUploaded && (
-          <div
-            {...getRootProps()}
-            className={`dropzone ${isDragActive ? 'active' : ''}`}
-            style={{
-              border: '2px dashed #ccc',
-              borderRadius: '8px',
-              padding: '40px',
-              textAlign: 'center',
-              cursor: 'pointer',
-              transition: 'border 0.3s ease, background-color 0.3s ease',
-              backgroundColor: '#f9f9f9',
-            }}
-          >
+          <div {...getRootProps()} className={`dropzone ${isDragActive ? 'active' : ''}`}>
             <input {...getInputProps()} />
-            <p
-              style={{
-                backgroundColor: 'black',
-                color: 'white',
-                fontSize: '48px',
-                width: '50px',
-                height: '50px',
-                borderRadius: '15px',
-                paddingTop: '5px',
-                margin: '0 auto 20px auto',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 'bold',
-                transition: 'transform 0.2s ease',
-              }}
-            >
-              +
-            </p>
-            <p
-              style={{
-                fontSize: '20px',
-                color: '#777',
-                marginBottom: '20px',
-                fontWeight: '700',
-              }}
-            >
-              Перетащите DOCX файл сюда или кликните для выбора
-            </p>
+            {isDragActive ? (
+              <p>Отпустите файл, чтобы загрузить его</p>
+            ) : (
+              <p>Перетащите сюда файл DOCX или PDF, или кликните для выбора</p>
+            )}
           </div>
         )}
 
-        {loading && <div className="loading-indicator">Загрузка...</div>}
+        {loading && <p>Загрузка...</p>}
 
         {fileUploaded && (
-          <div className="content-container">
-            <div
-              className="html-content"
-              ref={contentRef}
-              dangerouslySetInnerHTML={{ __html: htmlContent }}
+          <>
+            <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
+              <h3 style={{ marginTop: 0 }}>Параметры документа</h3>
+              
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                  Название шаблона:
+                </label>
+                <div style={{
+                  padding: '8px',
+                  borderRadius: '4px',
+                  border: '1px solid #eee',
+                  backgroundColor: '#fafafa',
+                  width: '100%',
+                  maxWidth: '300px'
+                }}>
+                  {templateName}
+                </div>
+              </div>
+              
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                  Тип документа:
+                </label>
+                <select
+                  value={docType}
+                  onChange={(e) => setDocType(e.target.value)}
+                  style={{
+                    padding: '8px',
+                    borderRadius: '4px',
+                    border: '1px solid #ccc',
+                    width: '100%',
+                    maxWidth: '300px'
+                  }}
+                >
+                  <option value="акт">Акт</option>
+                  <option value="отчет">Отчет</option>
+                  <option value="заявка">Заявка</option>
+                </select>
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                  Процент налога:
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <input
+                    type="number"
+                    value={taxPercent || ''}
+                    onChange={(e) => setTaxPercent(e.target.value ? Number(e.target.value) : null)}
+                    min="0"
+                    max="100"
+                    style={{
+                      padding: '8px',
+                      borderRadius: '4px',
+                      border: '1px solid #ccc',
+                      width: '100px'
+                    }}
+                    placeholder="Введите %"
+                  />
+                  <button
+                    onClick={handleNoTax}
+                    style={{
+                      padding: '8px 15px',
+                      backgroundColor: taxPercent === 0 ? '#4caf50' : '#f5f5f5',
+                      color: taxPercent === 0 ? 'white' : '#333',
+                      border: '1px solid #ccc',
+                      borderRadius: '4px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Нет процента налога {taxPercent === 0 ? '✓' : ''}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div 
+              ref={contentRef} 
+              className="html-content" 
+              dangerouslySetInnerHTML={{ __html: htmlContent }} 
+              style={{ border: '1px solid #ccc', padding: '10px', maxHeight: '400px', overflowY: 'auto', marginBottom: '20px' }}
             />
-          </div>
+            
+            <h3>Выделенные поля</h3>
+            <ul style={{ listStyle: 'none', padding: 0 }}>
+              {highlightedTexts.map(({ id, text, name, isTable, isDefault }) => (
+                <li key={id} style={{ 
+                  marginBottom: '15px', 
+                  padding: '15px', 
+                  border: '1px solid #eee', 
+                  borderRadius: '8px',
+                  backgroundColor: '#fafafa'
+                }}>
+                  <div style={{ marginBottom: '5px' }}><b>Текст:</b> {text}</div>
+                  <div style={{ marginBottom: '5px' }}><b>Тип:</b> {isTable ? 'Таблица' : 'Обычный текст'}</div>
+                  {editingId === id ? (
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
+                      <input 
+                        value={tempName} 
+                        onChange={(e) => setTempName(e.target.value)} 
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && tempName.trim()) {
+                            handleNameChange(id, tempName.trim());
+                          }
+                          if (e.key === 'Escape') {
+                            setEditingId(null);
+                          }
+                        }}
+                        autoFocus
+                        style={{
+                          padding: '5px',
+                          border: '1px solid #ccc',
+                          borderRadius: '4px',
+                          flexGrow: 1
+                        }}
+                      />
+                      <button 
+                        onClick={() => {
+                          if (tempName.trim()) {
+                            handleNameChange(id, tempName.trim());
+                          }
+                        }}
+                        style={{
+                          padding: '5px 10px',
+                          backgroundColor: '#4caf50',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Сохранить
+                      </button>
+                      <button 
+                        onClick={() => setEditingId(null)}
+                        style={{
+                          padding: '5px 10px',
+                          backgroundColor: '#f44336',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Отмена
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ marginBottom: '5px' }}><b>Название:</b> {name}</div>
+                      <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                        <button 
+                          onClick={() => toggleDefault(id)}
+                          style={{
+                            padding: '5px 10px',
+                            backgroundColor: isDefault ? '#4caf50' : '#f5f5f5',
+                            color: isDefault ? 'white' : '#333',
+                            border: '1px solid #ccc',
+                            borderRadius: '4px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Базовые значения {isDefault ? '✓' : ''}
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <button 
+                          onClick={() => {
+                            setEditingId(id);
+                            setTempName(name === 'Не задано' ? '' : name);
+                          }}
+                          style={{
+                            padding: '5px 10px',
+                            backgroundColor: '#2196f3',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Изменить
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(id)}
+                          style={{
+                            padding: '5px 10px',
+                            backgroundColor: '#f44336',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <button 
+              onClick={handleSaveReport} 
+              disabled={loading}
+              style={{
+                backgroundColor: '#1976d2',
+                color: 'white',
+                padding: '10px 20px',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '16px',
+                marginTop: '20px'
+              }}
+            >
+              Сохранить отчет
+            </button>
+          </>
         )}
       </div>
-
-      {highlightedTexts.length > 0 && (
-        <div className="highlights-list" style={{ marginTop: '20px' }}>
-          <h3 style={{ textAlign: 'center', marginBottom: '15px' }}>
-            Выделенные поля:
-          </h3>
-          <ul style={{ listStyle: 'none', padding: 0 }}>
-            {highlightedTexts.map(h => (
-              <li
-                key={h.id}
-                style={{
-                  marginBottom: '10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <div
-                  style={{
-                    border: '1px solid #ccc',
-                    borderRadius: '8px',
-                    padding: '10px',
-                    flexGrow: 1,
-                    marginRight: '15px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    wordBreak: 'break-word',
-                  }}
-                >
-                  {editingId === h.id ? (
-                    <span
-                      contentEditable
-                      suppressContentEditableWarning
-                      autoFocus
-                      onBlur={(e) => {
-                        const newName = e.currentTarget.textContent || 'Не задано';
-                        handleNameChange(h.id, newName.trim());
-                        setEditingId(null);
-                      }}
-                      style={{
-                        fontWeight: 'bold',
-                        color: h.name === 'Не задано' ? 'gray' : 'black',
-                        borderBottom: '1px dashed #aaa',
-                        outline: 'none',
-                        padding: '2px',
-                        cursor: 'text'
-                      }}
-                    >
-                      {h.name}
-                    </span>
-                  ) : (
-                    <span
-                      style={{
-                        fontWeight: 'bold',
-                        cursor: 'pointer',
-                        color: h.name === 'Не задано' ? 'gray' : 'black',
-                      }}
-                      onClick={() => setEditingId(h.id)}
-                    >
-                      {h.name}
-                    </span>
-                  )}
-                  <span style={{ marginLeft: '5px', width: '500px' }}>: {h.text}</span>
-                </div>
-
-                <button
-                  onClick={() => handleDelete(h.id)}
-                  title="Удалить"
-                  style={{
-                    width: '42px',
-                    height: '46px',
-                    borderRadius: '8px',
-                    backgroundColor: '#f2f2f2',
-                    border: '1px solid #ccc',
-                    fontSize: '18px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: 0,
-                    marginTop: '0',
-                    transition: 'background 0.2s',
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.backgroundColor = '#e6e6e6';
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.backgroundColor = '#f2f2f2';
-                  }}
-                >
-                  🗑️
-                </button>
-              </li>
-            ))}
-          </ul>
-          <button
-            onClick={handleSaveReport}
-            disabled={loading}
-            className="save-report-button"
-            style={{
-              display: 'block',
-              margin: '20px auto 0',
-              backgroundColor: loading ? '#d3d3d3' : '#4CAF50',
-              color: 'white',
-              padding: '12px 24px',
-              fontSize: '16px',
-              border: 'none',
-              borderRadius: '10px',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              boxShadow: '0 2px 6px rgba(0, 0, 0, 0.15)',
-              transition: 'background-color 0.3s ease, transform 0.1s ease',
-              fontWeight: 500,
-            }}
-            onMouseOver={(e) => {
-              if (!loading) e.currentTarget.style.backgroundColor = '#45a049';
-            }}
-            onMouseOut={(e) => {
-              if (!loading) e.currentTarget.style.backgroundColor = '#4CAF50';
-            }}
-            onMouseDown={(e) => {
-              if (!loading) e.currentTarget.style.transform = 'scale(0.98)';
-            }}
-            onMouseUp={(e) => {
-              if (!loading) e.currentTarget.style.transform = 'scale(1)';
-            }}
-          >
-            {loading ? 'Сохранение...' : 'Сохранить отчет'}
-          </button>
-        </div>
-      )}
     </div>
   );
 };
