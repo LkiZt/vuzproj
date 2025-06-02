@@ -262,61 +262,62 @@ const HomePage: React.FC = () => {
     }
   };
 
-  const generateDocument = async () => {
-    if (!organization || !legalEntity || !documentTitle || !documentType) {
-      alert('Пожалуйста, заполните все поля');
-      return;
+const generateDocument = async () => {
+  if (!organization || !legalEntity || !documentTitle || !documentType) {
+    alert('Пожалуйста, заполните все поля');
+    return;
+  }
+
+  try {
+    setRowCounter(1);
+    setLockedRows([]);
+    
+    const params = new URLSearchParams({
+      executorCompany: organization,
+      customerCompany: legalEntity,
+      templateName: documentTitle,
+      docType: documentType,
+    });
+
+    const response = await fetch(`http://85.159.226.224:5000/api/document/generate?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Ошибка при генерации документа');
     }
 
-    try {
-      setRowCounter(1);
-      setLockedRows([]);
+    const data: ApiResponse = await response.json();
+    setGeneratedUrl(data.url);
+    setDocumentName(data.documentName);
+    setDefaultFields(data.defaultFields || {});
+    setRemainingFields(data.remainingFields || []); // Добавьте эту строку
+
+    if (data.tableRowFormat) {
+      const fields = data.tableRowFormat.split(',');
+      setTableFields(fields);
+      setTableRows([0]);
       
-      const params = new URLSearchParams({
-        executorCompany: organization,
-        customerCompany: legalEntity,
-        templateName: documentTitle,
-        docType: documentType,
+      const initialValues: Record<number, Record<string, string>> = {};
+      initialValues[0] = {};
+      fields.forEach(field => {
+        initialValues[0][field] = '';
       });
-
-      const response = await fetch(`http://85.159.226.224:5000/api/document/generate?${params.toString()}`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Ошибка при генерации документа');
-      }
-
-      const data: ApiResponse = await response.json();
-      setGeneratedUrl(data.url);
-      setDocumentName(data.documentName);
-      setDefaultFields(data.defaultFields || {});
-
-      if (data.tableRowFormat) {
-        const fields = data.tableRowFormat.split(',');
-        setTableFields(fields);
-        setTableRows([0]);
-        
-        const initialValues: Record<number, Record<string, string>> = {};
-        initialValues[0] = {};
-        fields.forEach(field => {
-          initialValues[0][field] = '';
-        });
-        setTableValues(initialValues);
-      } else {
-        setTableFields([]);
-        setTableRows([0]);
-        setTableValues({});
-      }
-
-    } catch (error) {
-      console.error('Ошибка при генерации документа:', error);
-      alert('Произошла ошибка при генерации документа');
+      setTableValues(initialValues);
+    } else {
+      setTableFields([]);
+      setTableRows([0]);
+      setTableValues({});
     }
-  };
+
+  } catch (error) {
+    console.error('Ошибка при генерации документа:', error);
+    alert('Произошла ошибка при генерации документа');
+  }
+};
 
   const addTableRow = () => {
     const newRowIndex = tableRows.length;
@@ -948,49 +949,54 @@ const submitAndDownloadDocument = async () => {
               gap: '25px'
             }}>
               {remainingFields.length > 0 && (
-                <div style={{ 
-                  padding: '25px', 
-                  border: '1px solid #dee2e6', 
-                  borderRadius: '10px',
-                  backgroundColor: 'white',
-                  boxShadow: '0 2px 10px rgba(0,0,0,0.05)'
-                }}>
-                  <h3 style={{ 
-                    marginBottom: '20px',
-                    fontSize: '18px',
-                    fontWeight: '600',
-                    color: '#495057',
-                    paddingBottom: '15px',
-                    borderBottom: '1px solid #eee'
-                  }}>Дополнительные поля</h3>
-                  <div style={{ 
-                    display: 'grid', 
-                    gridTemplateColumns: '1fr', 
-                    gap: '20px'
-                  }}>
-                    {remainingFields.map((field) => (
-                      <div key={field} style={{ display: 'flex', flexDirection: 'column' }}>
-                        <label style={{ 
-                          marginBottom: '8px', 
-                          fontSize: '14px',
-                          fontWeight: '500',
-                          color: '#495057'
-                        }}>
-                          {field.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
-                        </label>
-                        <input
-                          type="text"
-                          value={tableValues[0]?.[field] || ''}
-                          onChange={(e) => handleFieldValueChange(0, field, e.target.value)}
-                          style={{ 
-                            padding: '10px 12px',
-                            border: '1px solid #ced4da',
-                            borderRadius: '6px',
-                            fontSize: '14px',
-                            transition: 'border-color 0.2s, box-shadow 0.2s',
-                          }}
-                        />
-                      </div>
+  <div style={{ 
+    padding: '25px', 
+    border: '1px solid #dee2e6', 
+    borderRadius: '10px',
+    backgroundColor: 'white',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.05)'
+  }}>
+    <h3 style={{ 
+      marginBottom: '20px',
+      fontSize: '18px',
+      fontWeight: '600',
+      color: '#495057',
+      paddingBottom: '15px',
+      borderBottom: '1px solid #eee'
+    }}>Дополнительные поля</h3>
+    <div style={{ 
+      display: 'grid', 
+      gridTemplateColumns: '1fr', 
+      gap: '20px'
+    }}>
+      {remainingFields.map((field) => (
+        <div key={field} style={{ display: 'flex', flexDirection: 'column' }}>
+          <label style={{ 
+            marginBottom: '8px', 
+            fontSize: '14px',
+            fontWeight: '500',
+            color: '#495057'
+          }}>
+            {field.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+          </label>
+          <input
+            type="text"
+            value={defaultFields[field] || ''}
+            onChange={(e) => {
+              setDefaultFields(prev => ({
+                ...prev,
+                [field]: e.target.value
+              }));
+            }}
+            style={{ 
+              padding: '10px 12px',
+              border: '1px solid #ced4da',
+              borderRadius: '6px',
+              fontSize: '14px',
+              transition: 'border-color 0.2s, box-shadow 0.2s',
+            }}
+          />
+        </div>
                     ))}
                   </div>
                 </div>

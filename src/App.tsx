@@ -16,10 +16,10 @@ const App: React.FC = () => {
             
             {/* Открытые маршруты (доступны без авторизации) */}
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegistrationForm />} />
 
             {/* Защищённые маршруты (только для авторизованных) */}
             <Route element={<ProtectedRoute />}>
-                <Route path="/register" element={<RegistrationForm />} />
                 <Route path="/home" element={<HomePage />} />
                 <Route path="/upload" element={<TemplateUploadPage />} />
                 <Route path="/navigator" element={<Zaglushka />} />

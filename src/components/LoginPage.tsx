@@ -77,6 +77,13 @@ const LoginPage: React.FC = () => {
                         {error && <p className="error">{error}</p>}
                         <div className='login-buttons'>
                             <button type="submit">Войти</button>
+                            <button 
+                                type="button" 
+                                className="register-button"
+                                onClick={() => navigate('/register')}
+                            >
+                                Регистрация
+                            </button>
                         </div>
                     </form>
                 </div>
