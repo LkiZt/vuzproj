@@ -34,11 +34,13 @@ const HomePage: React.FC = () => {
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
   const [remainingFields, setRemainingFields] = useState<string[]>([]);
   const [tableFields, setTableFields] = useState<string[]>([]);
-  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [tableRows, setTableRows] = useState<number[]>([0]);
+  const [tableValues, setTableValues] = useState<Record<number, Record<string, string>>>({});
   const [defaultFields, setDefaultFields] = useState<Record<string, string>>({});
   const [editingField, setEditingField] = useState<string | null>(null);
   const [documentName, setDocumentName] = useState<string | null>(null);
+  const [rowCounter, setRowCounter] = useState<number>(1);
+  const [lockedRows, setLockedRows] = useState<number[]>([]);
 
   const [executors, setExecutors] = useState<Executor[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -53,6 +55,8 @@ const HomePage: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalFor, setModalFor] = useState<DropdownName | null>(null);
   const [modalInput, setModalInput] = useState('');
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [templateToDelete, setTemplateToDelete] = useState('');
 
   const dropdownData = {
     organization: {
@@ -65,15 +69,15 @@ const HomePage: React.FC = () => {
       options: customers.map((c) => c.companyName),
       onSelect: setLegalEntity,
     },
-    documentTitle: {
-      label: 'Название',
-      options: templates.map((t) => t.fileName),
-      onSelect: setDocumentTitle,
-    },
     documentType: {
       label: 'Тип документа',
       options: ['Акт', 'Отчёт', 'Заявка'],
       onSelect: setDocumentType,
+    },
+    documentTitle: {
+      label: 'Название',
+      options: templates.map((t) => t.fileName),
+      onSelect: setDocumentTitle,
     },
   } as const;
 
@@ -108,17 +112,22 @@ const HomePage: React.FC = () => {
     return () => document.removeEventListener('click', handleDocumentClick);
   }, [navigate]);
 
-  const toggleDropdown = (name: DropdownName) => {
+  const toggleDropdown = (name: DropdownName, e: React.MouseEvent) => {
+    e.stopPropagation();
     setOpenDropdown((prev) => (prev === name ? null : name));
   };
 
-  const handleSelectOption = (name: DropdownName, value: string) => {
+  const handleSelectOption = (name: DropdownName, value: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     dropdownData[name].onSelect(value);
     setOpenDropdown(null);
     setGeneratedUrl(null);
     setRemainingFields([]);
     setTableFields([]);
     setTableRows([0]);
+    setTableValues({});
+    setLockedRows([]);
+    setRowCounter(1);
   };
 
   const openAddModal = (name: DropdownName) => {
@@ -126,6 +135,57 @@ const HomePage: React.FC = () => {
     setModalInput('');
     setModalOpen(true);
     setOpenDropdown(null);
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!documentTitle) return;
+    
+    setTemplateToDelete(documentTitle);
+    setDeleteModalOpen(true);
+    setOpenDropdown(null);
+  };
+
+  const handleDeleteTemplate = async () => {
+    if (!templateToDelete.trim()) {
+      alert('Название шаблона не может быть пустым.');
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append('templateName', templateToDelete);
+
+      const response = await fetch('http://85.159.226.224:5000/api/template/delete', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Ошибка при удалении шаблона');
+      }
+
+      const updatedTemplates = templates.filter(t => t.fileName !== templateToDelete);
+      setTemplates(updatedTemplates);
+      
+      if (documentTitle === templateToDelete) {
+        setDocumentTitle('');
+      }
+
+      setDeleteModalOpen(false);
+      setTemplateToDelete('');
+      alert('Шаблон успешно удален');
+
+    } catch (error) {
+      console.error('Ошибка при удалении шаблона:', error);
+      alert('Не удалось удалить шаблон');
+    }
   };
 
   const registerExecutor = async (companyName: string) => {
@@ -202,87 +262,133 @@ const HomePage: React.FC = () => {
     }
   };
 
-  const addTableRow = () => {
-    setTableRows(prev => [...prev, prev.length]);
-  };
-
-  const removeTableRow = (index: number) => {
-    if (tableRows.length > 1) {
-      setTableRows(prev => prev.filter(i => i !== index));
-      
-      const newFieldValues = {...fieldValues};
-      tableFields.forEach(field => {
-        delete newFieldValues[`${field}_${index}`];
-      });
-      setFieldValues(newFieldValues);
-    }
-  };
-
   const generateDocument = async () => {
-  if (!organization || !legalEntity || !documentTitle || !documentType) {
-    alert('Пожалуйста, заполните все поля');
-    return;
-  }
-
-  try {
-    const params = new URLSearchParams({
-      executorCompany: organization,
-      customerCompany: legalEntity,
-      templateName: documentTitle,
-      docType: documentType,
-    });
-
-    const response = await fetch(`http://85.159.226.224:5000/api/document/generate?${params.toString()}`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Ошибка при генерации документа');
+    if (!organization || !legalEntity || !documentTitle || !documentType) {
+      alert('Пожалуйста, заполните все поля');
+      return;
     }
 
-    const data: ApiResponse = await response.json();
-    setGeneratedUrl(data.url);
-    setDocumentName(data.documentName); // Сохраняем имя документа
-    setDefaultFields(data.defaultFields || {});
-    
-    const newFieldValues: Record<string, string> = {};
-    
-    if (data.remainingFields && Array.isArray(data.remainingFields)) {
-      setRemainingFields(data.remainingFields);
-      data.remainingFields.forEach(field => {
-        newFieldValues[field] = fieldValues[field] || '';
+    try {
+      setRowCounter(1);
+      setLockedRows([]);
+      
+      const params = new URLSearchParams({
+        executorCompany: organization,
+        customerCompany: legalEntity,
+        templateName: documentTitle,
+        docType: documentType,
       });
-    } else {
-      setRemainingFields([]);
-    }
 
-    if (data.tableRowFormat) {
-      const tableFields = data.tableRowFormat.split(',');
-      setTableFields(tableFields);
-      setTableRows([0]);
+      const response = await fetch(`http://85.159.226.224:5000/api/document/generate?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Ошибка при генерации документа');
+      }
+
+      const data: ApiResponse = await response.json();
+      setGeneratedUrl(data.url);
+      setDocumentName(data.documentName);
+      setDefaultFields(data.defaultFields || {});
+
+      if (data.tableRowFormat) {
+        const fields = data.tableRowFormat.split(',');
+        setTableFields(fields);
+        setTableRows([0]);
+        
+        const initialValues: Record<number, Record<string, string>> = {};
+        initialValues[0] = {};
+        fields.forEach(field => {
+          initialValues[0][field] = '';
+        });
+        setTableValues(initialValues);
+      } else {
+        setTableFields([]);
+        setTableRows([0]);
+        setTableValues({});
+      }
+
+    } catch (error) {
+      console.error('Ошибка при генерации документа:', error);
+      alert('Произошла ошибка при генерации документа');
+    }
+  };
+
+  const addTableRow = () => {
+    const newRowIndex = tableRows.length;
+    setTableRows(prev => [...prev, newRowIndex]);
+    
+    setTableValues(prev => {
+      const newValues = {...prev};
+      newValues[newRowIndex] = {};
       tableFields.forEach(field => {
-        newFieldValues[`${field}_0`] = fieldValues[`${field}_0`] || '';
+        newValues[newRowIndex][field] = '';
       });
-    } else {
-      setTableFields([]);
-      setTableRows([0]);
+      return newValues;
+    });
+  };
+
+  const removeTableRow = async (rowIndex: number) => {
+    if (tableRows.length <= 1) {
+      alert("Должна остаться хотя бы одна строка");
+      return;
     }
 
-    setFieldValues(newFieldValues);
+    try {
+      if (lockedRows.includes(rowIndex)) {
+        if (!documentName) {
+          throw new Error('Имя документа не определено');
+        }
 
-  } catch (error) {
-    console.error('Ошибка при генерации документа:', error);
-    alert('Произошла ошибка при генерации документа');
-  }
-};
+        const formData = new FormData();
+        formData.append('documentName', documentName);
+        formData.append('rowIndex', rowIndex.toString());
 
-  const handleFieldValueChange = (field: string, value: string) => {
-    setFieldValues(prev => ({
+        const response = await fetch('http://85.159.226.224:5000/api/document/remove-table-row', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Ошибка при удалении строки таблицы');
+        }
+
+        const result = await response.json();
+        console.log('Результат удаления строки:', result);
+        alert('Строка успешно удалена с сервера');
+      }
+
+      setRowCounter(prev => Math.max(1, prev - 1));
+      setLockedRows(prev => prev.filter(index => index !== rowIndex));
+      setTableRows(prev => prev.filter((_, index) => index !== rowIndex));
+      
+      setTableValues(prev => {
+        const newValues = {...prev};
+        delete newValues[rowIndex];
+        return newValues;
+      });
+
+    } catch (error) {
+      console.error('Ошибка при удалении строки:', error);
+      alert(`Произошла ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
+    }
+  };
+
+  const handleFieldValueChange = (rowIndex: number, field: string, value: string) => {
+    setTableValues(prev => ({
       ...prev,
-      [field]: value
+      [rowIndex]: {
+        ...prev[rowIndex],
+        [field]: value
+      }
     }));
   };
 
@@ -298,6 +404,52 @@ const HomePage: React.FC = () => {
     setEditingField(null);
   };
 
+  const handleSaveRow = async (rowIndex: number) => {
+    if (!documentName) {
+      alert('Документ не сгенерирован');
+      return;
+    }
+
+    try {
+      if (lockedRows.includes(rowIndex)) {
+        alert('Эта строка уже сохранена и заблокирована');
+        return;
+      }
+
+      const tableLine = tableValues[rowIndex] || {};
+
+      const formData = new FormData();
+      formData.append('documentName', documentName);
+      formData.append('tableLine', JSON.stringify(tableLine));
+      formData.append('rowIndexToCopy', "1");
+      formData.append('insertAfterRowIndex', rowCounter.toString());
+
+      const response = await fetch('http://85.159.226.224:5000/api/document/add-table-row', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Ошибка при сохранении строки таблицы');
+      }
+
+      setRowCounter(prev => prev + 1);
+      setLockedRows(prev => [...prev, rowIndex]);
+      
+      const result = await response.json();
+      alert('Строка таблицы успешно сохранена и заблокирована');
+      console.log('Результат сохранения строки:', result);
+
+    } catch (error) {
+      console.error('Ошибка при сохранении строки таблицы:', error);
+      alert(`Произошла ошибка: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
+    }
+  };
+
 const submitAndDownloadDocument = async () => {
   try {
     if (!documentName) {
@@ -305,38 +457,19 @@ const submitAndDownloadDocument = async () => {
       return;
     }
 
-    // Создаем объект метаданных
     const metadata: Record<string, string> = {};
 
-    // Добавляем дефолтные поля
+    // Добавляем только defaultFields (базовые поля)
     Object.entries(defaultFields).forEach(([key, value]) => {
       metadata[key] = value;
     });
 
-    // Добавляем дополнительные поля
-    remainingFields.forEach(field => {
-      metadata[field] = fieldValues[field] || '';
-    });
+    // Убрано добавление tableValues в metadata
 
-    // Добавляем табличные данные (без суффиксов)
-    tableRows.forEach(rowIndex => {
-      tableFields.forEach(field => {
-        const fieldKey = `${field}_${rowIndex}`;
-        metadata[field] = fieldValues[fieldKey] || ''; // Используем оригинальное имя поля
-      });
-    });
-
-    // Формируем FormData
     const formData = new FormData();
     formData.append('documentName', documentName);
     formData.append('metadataJson', JSON.stringify(metadata));
 
-    console.log('Отправляемые данные:', {
-      documentName,
-      metadata
-    });
-
-    // Отправляем запрос на обновление
     const updateResponse = await fetch('http://85.159.226.224:5000/api/document/update', {
       method: 'POST',
       headers: {
@@ -350,7 +483,6 @@ const submitAndDownloadDocument = async () => {
       throw new Error(errorData.message || 'Ошибка при обновлении документа');
     }
 
-    // Скачиваем документ
     const downloadResponse = await fetch(`http://85.159.226.224:5000/api/document/download?documentName=${encodeURIComponent(documentName)}`, {
       method: 'GET',
       headers: {
@@ -362,7 +494,6 @@ const submitAndDownloadDocument = async () => {
       throw new Error('Ошибка при скачивании документа');
     }
 
-    // Создаем ссылку для скачивания
     const blob = await downloadResponse.blob();
     const downloadUrl = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -395,7 +526,6 @@ const submitAndDownloadDocument = async () => {
         </header>
         <h2 className="title" style={{ fontSize: '24px', fontWeight: '600', color: '#444', marginBottom: '30px' }}>Создание отчета</h2>
 
-        {/* Форма выбора параметров документа */}
         <div style={{ 
           display: 'flex', 
           justifyContent: 'center', 
@@ -444,10 +574,7 @@ const submitAndDownloadDocument = async () => {
                   transition: 'all 0.2s ease',
                   boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
                 }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleDropdown(name);
-                }}
+                onClick={(e) => toggleDropdown(name, e)}
               >
                 <span
                   style={{
@@ -503,7 +630,6 @@ const submitAndDownloadDocument = async () => {
                       fontSize: 16,
                       boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
                     }}
-                    onClick={(e) => e.stopPropagation()}
                   >
                     {options.length === 0 ? (
                       <div style={{ padding: '10px 15px', color: '#6c757d', fontStyle: 'italic' }}>Нет данных</div>
@@ -518,8 +644,7 @@ const submitAndDownloadDocument = async () => {
                             userSelect: 'none',
                             transition: 'background-color 0.2s',
                           }}
-                          onClick={() => handleSelectOption(name, option)}
-                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={(e) => handleSelectOption(name, option, e)}
                         >
                           {option}
                         </div>
@@ -541,35 +666,60 @@ const submitAndDownloadDocument = async () => {
                         + Добавить...
                       </div>
                     )}
+                    {name === 'documentTitle' && (
+                      <>
+                        <div
+                          style={{
+                            padding: '12px 15px',
+                            cursor: documentTitle ? 'pointer' : 'not-allowed',
+                            color: documentTitle ? '#dc3545' : '#adb5bd',
+                            fontWeight: '500',
+                            userSelect: 'none',
+                            borderTop: '1px solid #f1f1f1',
+                            backgroundColor: '#f8f9fa',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                          }}
+                          onClick={handleDeleteClick}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M4 4L12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                            <path d="M12 4L4 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                          </svg>
+                          Удалить шаблон
+                        </div>
+                        <div
+                          style={{
+                            padding: '12px 15px',
+                            cursor: 'pointer',
+                            color: '#0d6efd',
+                            fontWeight: '500',
+                            userSelect: 'none',
+                            borderTop: '1px solid #f1f1f1',
+                            backgroundColor: '#f8f9fa',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate('/upload');
+                          }}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M8 1V15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                            <path d="M1 8H15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                          </svg>
+                          Добавить
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
             );
           })}
-
-          <button
-            onClick={() => navigate('/upload')}
-            style={{
-              border: '2px solid #6c757d',
-              borderRadius: 8,
-              width: 210,
-              height: 55,
-              padding: '0 15px',
-              cursor: 'pointer',
-              backgroundColor: 'white',
-              fontSize: 16,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: '500',
-              flexShrink: 0,
-              margin: 0,
-              transition: 'all 0.2s ease',
-              boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
-            }}
-          >
-            Создать отчет
-          </button>
 
           {allFieldsFilled && (
             <button
@@ -599,7 +749,6 @@ const submitAndDownloadDocument = async () => {
           )}
         </div>
 
-        {/* Компактная таблица полей */}
         {tableFields.length > 0 && (
           <div style={{ 
             marginBottom: 30,
@@ -609,7 +758,6 @@ const submitAndDownloadDocument = async () => {
             backgroundColor: 'white',
             boxShadow: '0 2px 10px rgba(0,0,0,0.05)'
           }}>
-            {/* Шапка с заголовком и кнопкой */}
             <div style={{ 
               display: 'flex', 
               justifyContent: 'space-between', 
@@ -649,20 +797,23 @@ const submitAndDownloadDocument = async () => {
               </button>
             </div>
             
-            {/* Строки таблицы */}
             {tableRows.map((rowIndex) => (
-              <div key={rowIndex} style={{ 
-                display: 'flex',
-                flexWrap: 'wrap',
-                alignItems: 'center',
-                marginBottom: '20px',
-                padding: '20px',
-                backgroundColor: rowIndex % 2 === 0 ? '#f8f9fa' : 'white',
-                borderRadius: '6px',
-                border: '1px solid #eee',
-                position: 'relative'
-              }}>
-                {tableFields.map((field, fieldIndex) => (
+              <div 
+                key={rowIndex} 
+                style={{ 
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  marginBottom: '20px',
+                  padding: '20px',
+                  backgroundColor: rowIndex % 2 === 0 ? '#f8f9fa' : 'white',
+                  borderRadius: '6px',
+                  border: '1px solid #eee',
+                  position: 'relative',
+                  opacity: lockedRows.includes(rowIndex) ? 0.7 : 1,
+                }}
+              >
+                {tableFields.map((field) => (
                   <div key={`${rowIndex}-${field}`} style={{ 
                     flex: '1 0 calc(33.333% - 25px)',
                     minWidth: '250px',
@@ -681,8 +832,9 @@ const submitAndDownloadDocument = async () => {
                     </label>
                     <input
                       type="text"
-                      value={fieldValues[`${field}_${rowIndex}`] || ''}
-                      onChange={(e) => handleFieldValueChange(`${field}_${rowIndex}`, e.target.value)}
+                      value={tableValues[rowIndex]?.[field] || ''}
+                      onChange={(e) => handleFieldValueChange(rowIndex, field, e.target.value)}
+                      disabled={lockedRows.includes(rowIndex)}
                       style={{ 
                         width: '100%',
                         padding: '12px 15px',
@@ -690,14 +842,44 @@ const submitAndDownloadDocument = async () => {
                         borderRadius: '6px',
                         fontSize: '15px',
                         transition: 'border-color 0.2s, box-shadow 0.2s',
-                        boxSizing: 'border-box'
+                        boxSizing: 'border-box',
+                        backgroundColor: lockedRows.includes(rowIndex) ? '#e9ecef' : 'white',
+                        pointerEvents: lockedRows.includes(rowIndex) ? 'none' : 'auto'
                       }}
                     />
                   </div>
                 ))}
                 
-                {/* Кнопка удаления строки */}
-                {tableRows.length > 1 && (
+                <div style={{
+                  display: 'flex',
+                  gap: '10px',
+                  marginLeft: 'auto',
+                  flexShrink: 0,
+                  alignSelf: 'flex-start'
+                }}>
+                  {!lockedRows.includes(rowIndex) && (
+                    <button 
+                      onClick={() => handleSaveRow(rowIndex)}
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        backgroundColor: '#28a745',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M13 4L6 12L3 9" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </button>
+                  )}
+                  
                   <button 
                     onClick={() => removeTableRow(rowIndex)}
                     style={{
@@ -711,9 +893,7 @@ const submitAndDownloadDocument = async () => {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      marginLeft: '20px',
-                      flexShrink: 0,
-                      alignSelf: 'center'
+                      flexShrink: 0
                     }}
                   >
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -721,20 +901,45 @@ const submitAndDownloadDocument = async () => {
                       <path d="M12 4L4 12" stroke="white" strokeWidth="2" strokeLinecap="round"/>
                     </svg>
                   </button>
+                </div>
+                
+                {lockedRows.includes(rowIndex) && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: '6px',
+                    pointerEvents: 'none'
+                  }}>
+                    <span style={{
+                      backgroundColor: '#28a745',
+                      color: 'white',
+                      padding: '5px 10px',
+                      borderRadius: '4px',
+                      fontSize: '14px',
+                      fontWeight: '500'
+                    }}>
+                      Сохранено
+                    </span>
+                  </div>
                 )}
               </div>
             ))}
           </div>
         )}
 
-        {/* Основной контент - дополнительные поля и документ */}
         {(remainingFields.length > 0 || generatedUrl) && (
           <div style={{ 
             display: 'flex', 
             gap: '25px',
             alignItems: 'flex-start'
           }}>
-            {/* Блок с полями слева */}
             <div style={{ 
               flex: 1,
               maxWidth: '600px',
@@ -742,7 +947,6 @@ const submitAndDownloadDocument = async () => {
               flexDirection: 'column',
               gap: '25px'
             }}>
-              {/* Дополнительные поля */}
               {remainingFields.length > 0 && (
                 <div style={{ 
                   padding: '25px', 
@@ -776,8 +980,8 @@ const submitAndDownloadDocument = async () => {
                         </label>
                         <input
                           type="text"
-                          value={fieldValues[field] || ''}
-                          onChange={(e) => handleFieldValueChange(field, e.target.value)}
+                          value={tableValues[0]?.[field] || ''}
+                          onChange={(e) => handleFieldValueChange(0, field, e.target.value)}
                           style={{ 
                             padding: '10px 12px',
                             border: '1px solid #ced4da',
@@ -792,7 +996,6 @@ const submitAndDownloadDocument = async () => {
                 </div>
               )}
 
-              {/* Default Fields таблица */}
               {Object.keys(defaultFields).length > 0 && (
                 <div style={{ 
                   padding: '25px', 
@@ -815,100 +1018,85 @@ const submitAndDownloadDocument = async () => {
                     gap: '20px'
                   }}>
                     {Object.entries(defaultFields).map(([field, value]) => (
-                      <div key={field} style={{ display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          marginBottom: '8px'
-                        }}>
-                          <label style={{ 
-                            fontSize: '14px', 
-                            fontWeight: '500',
-                            color: '#495057',
-                            flexGrow: 1
-                          }}>
-                            {field.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}:
-                          </label>
-                          {editingField !== field && (
-                            <button
-                              onClick={() => handleDefaultFieldEdit(field)}
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                cursor: 'pointer',
-                                padding: '5px',
-                                marginLeft: '5px',
-                                color: '#6c757d',
-                                transition: 'color 0.2s',
-                              }}
-                            >
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M11 4H4C3.46957 4 2.96086 4.21071 2.58579 4.58579C2.21071 4.96086 2 5.46957 2 6V20C2 20.5304 2.21071 21.0391 2.58579 21.4142C2.96086 21.7893 3.46957 22 4 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                                <path d="M18.5 2.5C18.8978 2.10217 19.4374 1.87868 20 1.87868C20.5626 1.87868 21.1022 2.10217 21.5 2.5C21.8978 2.89782 22.1213 3.43739 22.1213 4C22.1213 4.56261 21.8978 5.10217 21.5 5.5L12 15L8 16L9 12L18.5 2.5Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                              </svg>
-                            </button>
-                          )}
-                        </div>
-                        {editingField === field ? (
-                          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                            <input
-                              type="text"
-                              value={value}
-                              onChange={(e) => handleDefaultFieldSave(field, e.target.value)}
-                              style={{ 
-                                flexGrow: 1,
-                                padding: '10px 12px',
-                                border: '1px solid #ced4da',
-                                borderRadius: '6px',
-                                fontSize: '14px',
-                                transition: 'border-color 0.2s, box-shadow 0.2s',
-                              }}
-                            />
-                            <button
-                              onClick={() => setEditingField(null)}
-                              style={{
-                                width: '36px',
-                                height: '36px',
-                                backgroundColor: '#6c757d',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                transition: 'background-color 0.2s',
-                              }}
-                            >
-                              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M4 4L12 12" stroke="white" strokeWidth="2" strokeLinecap="round"/>
-                                <path d="M12 4L4 12" stroke="white" strokeWidth="2" strokeLinecap="round"/>
-                              </svg>
-                            </button>
-                          </div>
-                        ) : (
-                          <input
-                            type="text"
-                            value={value}
-                            readOnly
-                            style={{ 
-                              padding: '10px 12px',
-                              border: '1px solid #ced4da',
-                              borderRadius: '6px',
-                              fontSize: '14px',
-                              backgroundColor: '#f8f9fa',
-                              color: '#495057'
-                            }}
-                          />
-                        )}
-                      </div>
-                    ))}
+  <div key={field} style={{ display: 'flex', flexDirection: 'column' }}>
+    <div style={{ 
+      display: 'flex', 
+      alignItems: 'center', 
+      marginBottom: '8px'
+    }}>
+      <label style={{ 
+        fontSize: '14px', 
+        fontWeight: '500',
+        color: '#495057',
+        flexGrow: 1
+      }}>
+        {field.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}:
+      </label>
+      {editingField !== field && (
+        <button
+          onClick={() => handleDefaultFieldEdit(field)}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            padding: '5px',
+            marginLeft: '5px',
+            color: '#6c757d',
+            transition: 'color 0.2s',
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M11 4H4C3.46957 4 2.96086 4.21071 2.58579 4.58579C2.21071 4.96086 2 5.46957 2 6V20C2 20.5304 2.21071 21.0391 2.58579 21.4142C2.96086 21.7893 3.46957 22 4 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M18.5 2.5C18.8978 2.10217 19.4374 1.87868 20 1.87868C20.5626 1.87868 21.1022 2.10217 21.5 2.5C21.8978 2.89782 22.1213 3.43739 22.1213 4C22.1213 4.56261 21.8978 5.10217 21.5 5.5L12 15L8 16L9 12L18.5 2.5Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+      )}
+    </div>
+    {editingField === field ? (
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => {
+          setDefaultFields(prev => ({
+            ...prev,
+            [field]: e.target.value
+          }));
+        }}
+        onBlur={() => {
+          handleDefaultFieldSave(field, defaultFields[field]);
+          setEditingField(null);
+        }}
+        autoFocus
+        style={{ 
+          padding: '10px 12px',
+          border: '1px solid #ced4da',
+          borderRadius: '6px',
+          fontSize: '14px',
+          transition: 'border-color 0.2s, box-shadow 0.2s',
+        }}
+      />
+    ) : (
+      <input
+        type="text"
+        value={value}
+        readOnly
+        style={{ 
+          padding: '10px 12px',
+          border: '1px solid #ced4da',
+          borderRadius: '6px',
+          fontSize: '14px',
+          backgroundColor: '#f8f9fa',
+          color: '#495057'
+        }}
+      />
+    )}
+  </div>
+))}
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Документ - справа */}
             {generatedUrl && (
               <div style={{ 
                 flex: 2,
@@ -933,7 +1121,6 @@ const submitAndDownloadDocument = async () => {
           </div>
         )}
 
-        {/* Кнопка обновления документа */}
         {(remainingFields.length > 0 || tableFields.length > 0) && (
           <div style={{ 
             textAlign: 'center', 
@@ -969,7 +1156,6 @@ const submitAndDownloadDocument = async () => {
           </div>
         )}
 
-        {/* Модальное окно */}
         {modalOpen && (
           <div
             className="modal-overlay"
@@ -1042,6 +1228,69 @@ const submitAndDownloadDocument = async () => {
                   }}
                 >
                   Добавить
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {deleteModalOpen && templateToDelete && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 2000,
+            }}
+            onClick={() => setDeleteModalOpen(false)}
+          >
+            <div
+              style={{
+                backgroundColor: 'white',
+                padding: 20,
+                borderRadius: 8,
+                minWidth: 300,
+                maxWidth: 500,
+                boxShadow: '0 4px 8px rgba(0,0,0,0.2)'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 style={{ marginBottom: 20 }}>Подтверждение удаления</h3>
+              <p style={{ marginBottom: 20 }}>Вы уверены, что хотите удалить шаблон "{templateToDelete}"?</p>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button 
+                  onClick={() => setDeleteModalOpen(false)}
+                  style={{ 
+                    padding: '8px 16px',
+                    backgroundColor: '#f1f1f1',
+                    border: '1px solid #ddd',
+                    borderRadius: 4,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Отменить
+                </button>
+                <button 
+                  onClick={() => {
+                    handleDeleteTemplate();
+                    setDeleteModalOpen(false);
+                  }}
+                  style={{ 
+                    padding: '8px 16px',
+                    backgroundColor: '#dc3545',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: 4,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Подтвердить удаление
                 </button>
               </div>
             </div>

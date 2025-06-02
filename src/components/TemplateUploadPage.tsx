@@ -62,6 +62,49 @@ const ErrorModal: React.FC<{ message: string; onClose: () => void }> = ({ messag
   );
 };
 
+const SuccessModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000,
+    }}>
+      <div style={{
+        backgroundColor: 'white',
+        padding: '20px',
+        borderRadius: '8px',
+        maxWidth: '500px',
+        width: '90%',
+        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+      }}>
+        <h3 style={{ color: '#4caf50', marginTop: 0 }}>Успешно</h3>
+        <p>Шаблон успешно создан</p>
+        <button
+          onClick={onClose}
+          style={{
+            backgroundColor: '#4caf50',
+            color: 'white',
+            border: 'none',
+            padding: '8px 16px',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            float: 'right',
+          }}
+        >
+          ОК
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const TemplateNameModal: React.FC<{ 
   onConfirm: (name: string) => void, 
   onCancel: () => void 
@@ -153,6 +196,7 @@ const TemplateUploadPage: React.FC = () => {
   const [templateName, setTemplateName] = useState<string>('');
   const [showTemplateNameModal, setShowTemplateNameModal] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
 
   const getTextNodes = (node: Node | null): Node[] => {
     if (!node) return [];
@@ -341,7 +385,8 @@ const TemplateUploadPage: React.FC = () => {
           let fieldName = text.name;
           if (text.isTable) fieldName = `[t]${fieldName}`;
           if (text.isDefault) fieldName = `[d]${fieldName}`;
-          acc[fieldName] = text.text;
+          // Remove newlines from the text value
+          acc[fieldName] = text.text.replace(/\n/g, ' ');
         }
         return acc;
       }, {} as Record<string, string>);
@@ -361,6 +406,9 @@ const TemplateUploadPage: React.FC = () => {
         const errorData = await response.json();
         throw new Error(errorData.title || errorData.message || `Ошибка HTTP: ${response.status}`);
       }
+
+      // Show success message
+      setShowSuccessMessage(true);
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Произошла ошибка при сохранении отчета');
@@ -385,6 +433,12 @@ const TemplateUploadPage: React.FC = () => {
         <ErrorModal 
           message={error} 
           onClose={() => setShowErrorModal(false)} 
+        />
+      )}
+      
+      {showSuccessMessage && (
+        <SuccessModal 
+          onClose={() => setShowSuccessMessage(false)} 
         />
       )}
       
@@ -414,11 +468,25 @@ const TemplateUploadPage: React.FC = () => {
 
         {fileUploaded && (
           <>
-            <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
+            <div style={{ 
+              marginBottom: '20px', 
+              padding: '15px', 
+              backgroundColor: '#f5f5f5', 
+              borderRadius: '8px' 
+            }}>
               <h3 style={{ marginTop: 0 }}>Параметры документа</h3>
               
-              <div style={{ marginBottom: '15px' }}>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+              {/* Название шаблона */}
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                marginBottom: '15px',
+                gap: '10px'
+              }}>
+                <label style={{ 
+                  fontWeight: 'bold',
+                  minWidth: '150px'
+                }}>
                   Название шаблона:
                 </label>
                 <div style={{
@@ -426,15 +494,23 @@ const TemplateUploadPage: React.FC = () => {
                   borderRadius: '4px',
                   border: '1px solid #eee',
                   backgroundColor: '#fafafa',
-                  width: '100%',
-                  maxWidth: '300px'
+                  flexGrow: 1
                 }}>
                   {templateName}
                 </div>
               </div>
               
-              <div style={{ marginBottom: '15px' }}>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+              {/* Тип документа */}
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                marginBottom: '15px',
+                gap: '10px'
+              }}>
+                <label style={{ 
+                  fontWeight: 'bold',
+                  minWidth: '150px'
+                }}>
                   Тип документа:
                 </label>
                 <select
@@ -444,8 +520,7 @@ const TemplateUploadPage: React.FC = () => {
                     padding: '8px',
                     borderRadius: '4px',
                     border: '1px solid #ccc',
-                    width: '100%',
-                    maxWidth: '300px'
+                    flexGrow: 1
                   }}
                 >
                   <option value="акт">Акт</option>
@@ -454,11 +529,24 @@ const TemplateUploadPage: React.FC = () => {
                 </select>
               </div>
               
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+              {/* Процент налога */}
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center',
+                gap: '10px'
+              }}>
+                <label style={{ 
+                  fontWeight: 'bold',
+                  minWidth: '150px'
+                }}>
                   Процент налога:
                 </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '10px',
+                  flexGrow: 1
+                }}>
                   <input
                     type="number"
                     value={taxPercent || ''}
@@ -469,9 +557,9 @@ const TemplateUploadPage: React.FC = () => {
                       padding: '8px',
                       borderRadius: '4px',
                       border: '1px solid #ccc',
-                      width: '100px'
+                      width: '80px'
                     }}
-                    placeholder="Введите %"
+                    placeholder="%"
                   />
                   <button
                     onClick={handleNoTax}
@@ -481,90 +569,135 @@ const TemplateUploadPage: React.FC = () => {
                       color: taxPercent === 0 ? 'white' : '#333',
                       border: '1px solid #ccc',
                       borderRadius: '4px',
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      height: '36px',
+                      marginTop: '0',
+                      whiteSpace: 'nowrap'
                     }}
                   >
-                    Нет процента налога {taxPercent === 0 ? '✓' : ''}
+                    Нет налога {taxPercent === 0 ? '✓' : ''}
                   </button>
                 </div>
               </div>
             </div>
 
+            {/* Превью документа */}
             <div 
               ref={contentRef} 
               className="html-content" 
               dangerouslySetInnerHTML={{ __html: htmlContent }} 
-              style={{ border: '1px solid #ccc', padding: '10px', maxHeight: '400px', overflowY: 'auto', marginBottom: '20px' }}
+              style={{ 
+                border: '1px solid #ccc', 
+                padding: '10px', 
+                maxHeight: '400px', 
+                overflowY: 'auto', 
+                marginBottom: '20px' 
+              }}
             />
             
+            {/* Выделенные поля */}
             <h3>Выделенные поля</h3>
-            <ul style={{ listStyle: 'none', padding: 0 }}>
-              {highlightedTexts.map(({ id, text, name, isTable, isDefault }) => (
+            <ul style={{ 
+              listStyle: 'none', 
+              padding: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px'
+            }}>
+              {highlightedTexts.map(({ id, text, name, isDefault }) => (
                 <li key={id} style={{ 
-                  marginBottom: '15px', 
-                  padding: '15px', 
+                  padding: '10px', 
                   border: '1px solid #eee', 
-                  borderRadius: '8px',
-                  backgroundColor: '#fafafa'
+                  borderRadius: '4px',
+                  backgroundColor: '#fafafa',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '20px'
                 }}>
-                  <div style={{ marginBottom: '5px' }}><b>Текст:</b> {text}</div>
-                  <div style={{ marginBottom: '5px' }}><b>Тип:</b> {isTable ? 'Таблица' : 'Обычный текст'}</div>
-                  {editingId === id ? (
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
-                      <input 
-                        value={tempName} 
-                        onChange={(e) => setTempName(e.target.value)} 
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && tempName.trim()) {
-                            handleNameChange(id, tempName.trim());
-                          }
-                          if (e.key === 'Escape') {
-                            setEditingId(null);
-                          }
-                        }}
-                        autoFocus
-                        style={{
-                          padding: '5px',
-                          border: '1px solid #ccc',
-                          borderRadius: '4px',
-                          flexGrow: 1
-                        }}
-                      />
-                      <button 
-                        onClick={() => {
-                          if (tempName.trim()) {
-                            handleNameChange(id, tempName.trim());
-                          }
-                        }}
-                        style={{
-                          padding: '5px 10px',
-                          backgroundColor: '#4caf50',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Сохранить
-                      </button>
-                      <button 
-                        onClick={() => setEditingId(null)}
-                        style={{
-                          padding: '5px 10px',
-                          backgroundColor: '#f44336',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Отмена
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <div style={{ marginBottom: '5px' }}><b>Название:</b> {name}</div>
-                      <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                  <div style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column',
+                    gap: '5px',
+                    flex: '1 1 50%'
+                  }}>
+                    <div><b>Текст:</b> {text}</div>
+                    <div><b>Название:</b> {name}</div>
+                  </div>
+                  
+                  <div style={{ 
+                    display: 'flex', 
+                    gap: '10px',
+                    alignItems: 'center'
+                  }}>
+                    {editingId === id ? (
+                      <div style={{ 
+                        display: 'flex', 
+                        gap: '10px', 
+                        alignItems: 'center',
+                        height: '36px'
+                      }}>
+                        <input 
+                          value={tempName} 
+                          onChange={(e) => setTempName(e.target.value)} 
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && tempName.trim()) {
+                              handleNameChange(id, tempName.trim());
+                            }
+                            if (e.key === 'Escape') {
+                              setEditingId(null);
+                            }
+                          }}
+                          autoFocus
+                          style={{
+                            padding: '5px',
+                            border: '1px solid #ccc',
+                            borderRadius: '4px',
+                            width: '150px',
+                            height: '36px'
+                          }}
+                        />
+                        <button 
+                          onClick={() => {
+                            if (tempName.trim()) {
+                              handleNameChange(id, tempName.trim());
+                            }
+                          }}
+                          style={{
+                            padding: '5px 10px',
+                            backgroundColor: '#4caf50',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            height: '36px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          ✓
+                        </button>
+                        <button 
+                          onClick={() => setEditingId(null)}
+                          style={{
+                            padding: '5px 10px',
+                            backgroundColor: '#f44336',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            height: '36px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : (
+                      <>
                         <button 
                           onClick={() => toggleDefault(id)}
                           style={{
@@ -573,13 +706,13 @@ const TemplateUploadPage: React.FC = () => {
                             color: isDefault ? 'white' : '#333',
                             border: '1px solid #ccc',
                             borderRadius: '4px',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            height: '36px'
                           }}
                         >
-                          Базовые значения {isDefault ? '✓' : ''}
+                          {isDefault ? '✓ Базовое' : 'Базовое'}
                         </button>
-                      </div>
-                      <div style={{ display: 'flex', gap: '10px' }}>
                         <button 
                           onClick={() => {
                             setEditingId(id);
@@ -591,7 +724,8 @@ const TemplateUploadPage: React.FC = () => {
                             color: 'white',
                             border: 'none',
                             borderRadius: '4px',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            height: '36px'
                           }}
                         >
                           Изменить
@@ -604,14 +738,15 @@ const TemplateUploadPage: React.FC = () => {
                             color: 'white',
                             border: 'none',
                             borderRadius: '4px',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            height: '36px'
                           }}
                         >
                           Удалить
                         </button>
-                      </div>
-                    </>
-                  )}
+                      </>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
