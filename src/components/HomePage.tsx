@@ -112,6 +112,11 @@ const HomePage: React.FC = () => {
     return () => document.removeEventListener('click', handleDocumentClick);
   }, [navigate]);
 
+  const handleLogout = () => {
+    localStorage.removeItem('authToken');
+    navigate('/');
+  };
+
   const toggleDropdown = (name: DropdownName, e: React.MouseEvent) => {
     e.stopPropagation();
     setOpenDropdown((prev) => (prev === name ? null : name));
@@ -522,8 +527,31 @@ const submitAndDownloadDocument = async () => {
         className="home-content"
         style={{ maxWidth: 1520, margin: '0 auto', padding: 20 }}
       >
-        <header className="header">
-          <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: '#333', marginBottom: '10px' }}>Панель управления</h1>
+        <header className="header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: '#333', marginBottom: '10px' }}>Генератор документов</h1>
+          <button 
+            onClick={handleLogout}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#dc3545',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H9" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M16 17L21 12L16 7" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M21 12H9" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Выйти
+          </button>
         </header>
         <h2 className="title" style={{ fontSize: '24px', fontWeight: '600', color: '#444', marginBottom: '30px' }}>Создание отчета</h2>
 
